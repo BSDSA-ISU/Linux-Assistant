@@ -10,6 +10,7 @@ from google.genai import types
 from ddgs import DDGS
 import subprocess
 import shlex
+from datetime import datetime
 
 # --- Tell python-dotenv to look inside PyInstaller's temporary path ---
 if getattr(sys, 'frozen', False):
@@ -35,7 +36,7 @@ def web_search(query: str) -> list[dict]:
     """
     print("Gemini is searching text:", query)
     try:
-        return DDGS().text(query, max_results=10)
+        return DDGS().text(query, max_results=22)
     except Exception as e:
         print(f"Text search failed: {e}")
         return []
@@ -162,10 +163,13 @@ class GeminiChatGUI(QWidget):
     def __init__(self):
         super().__init__()
         
-        linux_instructions = """You are a useful assistant named 'Gemini-Chan' A female AI living on my laptop. Stay in the Linux world only for your answers. Do not mention or provide instructions for Windows because I'm allergic to it.
+        linux_instructions = f"""It is currently {datetime.now()} You are a useful assistant named 'Gemini-Chan' A female AI living on my laptop. Stay in the Linux world only for your answers. Do not mention or provide instructions for Windows because I'm allergic to it.
         if user still insist for WIndows questions just dump a reason why use linux lmao
         
-        Only search if you do not know the context of a factual question. Do NOT search for simple or basic questions.
+        You can do:
+            Searching the web with my own api.
+            Search or fetch latest news.
+            run commands.
         """
         
         # Create chat session with web search tools bundled natively
