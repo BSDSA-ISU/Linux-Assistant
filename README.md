@@ -9,6 +9,7 @@
     - [Search](#search)
     - [News Search](#news-search)
   - [Peoples Involved](#peoples-involved)
+  - [Future plans](#future-plans)
   - [This app made possible with the help of](#this-app-made-possible-with-the-help-of)
   - [Thank you and peace out](#thank-you-and-peace-out)
 
@@ -43,6 +44,10 @@ it can fetch latest news in the internet using ddgs
 Made with [contrib.rocks](https://contrib.rocks).
 
 ---
+
+## Future plans
+
+- Web Ui
 
 ## This app made possible with the help of
 
