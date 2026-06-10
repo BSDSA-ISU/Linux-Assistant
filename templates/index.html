@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini GenAI WebUI</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="icon" type="image/x-icon" href="/static/favico.png">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" />
+</head>
+<body class="bg-gray-100 h-screen flex flex-col justify-between">
+
+    <header class="bg-white shadow p-4 flex justify-between items-center max-w-3xl w-full mx-auto mt-2 rounded-lg">
+        <span class="font-bold text-xl text-gray-800">Gemini Live Workspace</span>
+        <button id="clear-btn" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition">
+            Clear Chat
+        </button>
+    </header>
+
+<div id="chat-box" class="flex-1 overflow-y-auto p-6 space-y-4 max-w-3xl w-full mx-auto">
+    
+    <div class="bg-gray-200 text-gray-800 p-3 rounded-lg max-w-xl shadow-sm prose prose-sm max-w-none">
+        Hello! I am powered by Gemini. Ask me anything!
+    </div>
+
+    {% for message in chat_history %}
+        {% if message.role == 'user' %}
+            <div class="bg-gray-800 text-white p-3 rounded-lg max-w-xl ml-auto shadow-sm" style="white-space: pre-wrap;">{{ message.parts[0].text }}</div>
+        {% else %}
+            <div class="bg-gray-200 text-gray-800 p-3 rounded-lg max-w-xl shadow-sm prose prose-sm max-w-none historical-model-msg" style="display: none;">{{ message.parts[0].text }}</div>
+        {% endif %}
+    {% endfor %}
+</div>
+
+    <div class="bg-white border-t p-4">
+        <form id="chat-form" class="max-w-3xl mx-auto flex gap-4 items-end">
+            <textarea id="user-input" placeholder="Ask Gemini... (Enter to send, Shift+Enter for newline)" rows="1"
+                   class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-gray-500 resize-none overflow-y-auto max-h-32"></textarea>
+            <button type="submit" class="bg-gray-800 text-white px-6 py-2 rounded-lg hover:bg-gray-900 transition h-10">
+                Send
+            </button>
+        </form>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+    <script>
+const form = document.getElementById('chat-form');
+const input = document.getElementById('user-input');
+const chatBox = document.getElementById('chat-box');
+const clearBtn = document.getElementById('clear-btn');
+
+async function handleSend() {
+    const message = input.value.trim();
+    if (!message) return;
+
+    appendMessage(message, 'user');
+    input.value = '';
+    input.style.height = 'auto';
+
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message })
+        });
+        const data = await response.json();
+
+        if (data.response) {
+            appendMessage(data.response, 'model');
+        } else {
+            appendMessage('Error: ' + data.error, 'model');
+        }
+    } catch (error) {
+        appendMessage('Failed to reach backend server.', 'model');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const savedModelMessages = document.querySelectorAll('.historical-model-msg');
+    
+    savedModelMessages.forEach(msgDiv => {
+        const rawMarkdown = msgDiv.textContent;
+        msgDiv.innerHTML = marked.parse(rawMarkdown);
+        msgDiv.style.display = 'block';
+    });
+
+    // 3. Highlight historical chat messages on load
+    Prism.highlightAllUnder(chatBox);
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+});
+
+input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+    }
+});
+
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleSend();
+});
+
+input.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+});
+
+clearBtn.addEventListener('click', async () => {
+    await fetch('/api/clear', { method: 'POST' });
+    chatBox.innerHTML = '<div class="bg-gray-200 text-gray-800 p-3 rounded-lg max-w-xs shadow-sm">Chat history wiped. Ready for a new topic!</div>';
+});
+
+function appendMessage(text, role) {
+    const msgDiv = document.createElement('div');
+    
+    if (role === 'user') {
+        msgDiv.style.whiteSpace = "pre-wrap"; 
+        msgDiv.innerText = text;
+        msgDiv.className = "bg-gray-800 text-white p-3 rounded-lg max-w-xl ml-auto shadow-sm";
+    } else {
+        msgDiv.innerHTML = marked.parse(text);
+        msgDiv.className = "bg-gray-200 text-gray-800 p-3 rounded-lg max-w-2xl shadow-sm prose prose-sm max-w-none";
+        
+        // 4. Force Prism to parse and color code snippets inside this specific element
+        setTimeout(() => {
+            Prism.highlightAllUnder(msgDiv);
+        }, 10);
+    }
+    
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+    </script>
+</body>
+
+<style>
+    .prose p { margin-bottom: 0.5rem; }
+    .prose p:last-child { margin-bottom: 0; }
+    .prose ul, .prose ol { margin-left: 1.25rem; margin-bottom: 0.5rem; list-style-type: disc; }
+    .prose ol { list-style-type: decimal; }
+    .prose strong { font-weight: 700; }
+    
+    /* Inline single backtick code styling `like this` */
+    .prose :not(pre) > code { 
+        background-color: rgba(0,0,0,0.08); 
+        color: #b91c1c; 
+        padding: 0.125rem 0.25rem; 
+        border-radius: 0.25rem; 
+        font-family: monospace; 
+    }
+    
+    /* 5. Custom override for Prism block containers to look sleek */
+    .prose pre[class*="language-"] { 
+        padding: 1rem !important; 
+        border-radius: 0.5rem !important; 
+        margin: 0.75rem 0 !important; 
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+    }
+</style>
+</html>
