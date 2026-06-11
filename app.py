@@ -6,7 +6,9 @@ from flask import Flask, render_template, request, jsonify, session
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+import glob
 from flask_session import Session
+import shlex
 
 CURRENTTIME = datetime.now()
 
@@ -68,8 +70,6 @@ def web_news_search(query: str) -> list[dict]:
         print(f"News search failed: {e}")
         return []
 
-import shlex
-
 def cmd(command: str) -> list[dict]:
     """
     Runs a command on linux like timedatectl, uptime, date etc.
@@ -108,16 +108,27 @@ def cmd(command: str) -> list[dict]:
     if base_binary in FORBIDDEN_BINARIES:
         return [{"error": f"Execution denied: '{base_binary}' is a forbidden command."}]
 
-    print("Gemini is running:", command)
+    # NEW: Safely expand wildcards (globs) if present in the arguments
+    final_args = [parsed_command[0]]
+    for arg in parsed_command[1:]:
+        if "*" in arg or "?" in arg:
+            expanded = glob.glob(arg)
+            if expanded:
+                final_args.extend(expanded)
+            else:
+                # If no files match the wildcard, pass it literally so the binary fails naturally
+                final_args.append(arg)
+        else:
+            final_args.append(arg)
+
+    print("Gemini is running:", " ".join(final_args))
     
-    # CRITICAL: Drop shell=True. Passing the parsed list to subprocess.run
-    # ensures that even if something slips through, it won't execute as a shell string.
     try:
         result = subprocess.run(
-            parsed_command,
+            final_args,  # Pass the expanded arguments list here
             capture_output=True,
             text=True,
-            timeout=5 # Add a timeout so it doesn't hang your app indefinitely
+            timeout=5
         )
         
         output = result.stdout if result.stdout else result.stderr
@@ -130,7 +141,6 @@ def cmd(command: str) -> list[dict]:
         return [{"error": "Command timed out."}]
     except Exception as e:
         return [{"error": f"Execution failed: {str(e)}"}]
-
 
 @app.route('/')
 def index():
